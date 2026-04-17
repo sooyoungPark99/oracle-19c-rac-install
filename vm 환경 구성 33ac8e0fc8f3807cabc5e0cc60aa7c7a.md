@@ -1,12 +1,64 @@
-# vm 환경 구성
+# **오라클 19C RAC 구성 계획(2026.03.17)**
 
-#### 이번 설치에서 사용할 주요 경로
+**사용 소프트웨어**
 
-| **이름** | **주소** |
-| --- | --- |
-| ORACLE_BASE | /u01/app/oracle |
-| ORACLE_HOME | /u01/app/oracle/product/19c |
-| GRID_HOME | /u01/app/grid/19c |
+**VirtualBox 7.0**
+
+**Oracle Enterprise Linux 8.4**
+
+**Oracle Grid 19.3**
+
+**Oracle Database 19.3**
+
+**서버 구성**
+
+| VM 이름 | 호스트 이름 | 메모리 | 어댑터1 | 어댑터2 | 구성 방법 |
+| --- | --- | --- | --- | --- | --- |
+| rac1 | rac1 | 8GB | NAT 네트워크 | 호스트 전용 어댑터 | 리눅스 설치 |
+| rac2 | rac2 | 8GB | NAT 네트워크 | 호스트 전용 어댑터| rac1 복제|
+
+- **스토리지**
+
+| 파일 이름 | 용량 | 타입 | 용도 |
+| --- | --- | --- | --- |
+| rac1.vdi | 50GB | Dynamic | 1번 서버의 시스템 영역 |
+| rac2.vdi | 50GB | Dynamic | 2번 서버의 시스템 영역 |
+
+- **공유 스토리지**
+
+| 파일 이름 | 용량 | 타입 | 용도 |
+| --- | --- | --- | --- |
+| CRS1.vdi | 1GB | Fixed / Shareable | CRS 저장 영역 |
+| CRS2.vdi | 1GB | Fixed / Shareable | CRS 저장 영역 |
+| CRS3.vdi | 1GB | Fixed / Shareable | CRS 저장 영역 |
+| DATA.vdi | 30GB | Fixed / Shareable | Data 저장 영역 |
+| FRA.vdi | 20GB | Fixed / Shareable | Fast Recovery Area |
+
+공유(shareable) 디스크로 사용하기 위해서 Fixed Size로 생성한다.
+
+- **네트워크**
+
+| VM | Public IP | Private IP | Virtual IP | SCAN IP | 넷마스크 | 게이트웨이 | DNS 서버 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| rac1 | 10.0.2.15 | 192.168.56.101 | 10.0.2.111 | 10.0.2.120 | 255.255.255.0 | 10.0.2.2 | 168.126.63.1 |
+| rac2 | 10.0.2.16 | 192.168.56.102 | 10.0.2.112 | 10.0.2.120 | 255.255.255.0 | 10.0.2.2 | 168.126.63.1 |
+
+---
+**알아두어야 할 점:**
+
+- 1.이번 실습에서 사용할 주소
+
+|이름|주소|
+|---|---|
+|ORACLE_BASE| /u01/app/oracle|
+|ORACLE_HOME | /u01/app/oracle/product/19c|
+|GRID_HOME|  /u01/app/grid/19c|
+
+- 2.home/oracle/media는 grid zip파일, db zip파일을 다운로드 받을 경로로 생성한다.
+
+(없어도 전혀 상관없음.)
+
+- 3.Grid 및 DB를 설치할 유저: oracle, 그룹명: dba
 
 ---
 
@@ -20,7 +72,7 @@
 
 ---
 
-### ☑️ 작업 절차
+### 작업 절차
 
 <aside>
 
@@ -33,7 +85,7 @@
 
 ---
 
-## #0) 사전 준비 - 파일 생성
+## 사전 준비 - 파일 생성
 
 - rac 저장 폴더 미리 생성
 
@@ -127,9 +179,7 @@
 만들기 2번 클릭
 
 <aside>
-⚠️
-
-가장 중요한 규칙
+⚠️ 가장 중요한 규칙
 
 - **rac1의 어댑터 1**과 **rac2의 어댑터 1**이 **서로 같은 NAT Network 이름**을 선택해야 함
 - 예: rac1이 `NatNetwork`면 rac2도 `NatNetwork`
@@ -154,13 +204,3 @@
 ![image.png](image%209.png)
 
 ---
-
-<aside>
-<img src="https://www.notion.so/icons/push-pin_gray.svg" alt="https://www.notion.so/icons/push-pin_gray.svg" width="40px" />
-
-**학습정리**
-
-- 실습용 경로(ORACLE_BASE/HOME, GRID_HOME)를 정리했다.
-- VirtualBox에서 rac1 VM을 생성하고(메모리/CPU/디스크), 오디오를 비활성화했다.
-- NAT Network를 생성한 뒤, 어댑터1은 NAT Network, 어댑터2는 Host-Only로 구성했다.
-</aside>
