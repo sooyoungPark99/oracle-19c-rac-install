@@ -1,0 +1,226 @@
+# ASM 디스크 그룹 생성
+
+### 1. Grid 상태 점검 및 비정상 시 조치
+
+<aside>
+
+만약 crsctl stat res -t  를 수행했을때 다음과 같이 정상적으로 나오지 않는 상황이라면?
+
+</aside>
+
+아래와 같이 결과가 나와야한다.
+
+```sql
+[root@koh1 ~]# crsctl stat res -t
+--------------------------------------------------------------------------------
+Name           Target  State        Server                   State details
+--------------------------------------------------------------------------------
+Local Resources
+--------------------------------------------------------------------------------
+ora.LISTENER.lsnr
+               ONLINE  ONLINE       rac1                     STABLE
+               ONLINE  ONLINE       rac2                     STABLE
+ora.chad
+               ONLINE  ONLINE       rac1                     STABLE
+               ONLINE  ONLINE       rac2                     STABLE
+ora.net1.network
+               ONLINE  ONLINE       rac1                     STABLE
+               ONLINE  ONLINE       rac2                     STABLE
+ora.ons
+               ONLINE  ONLINE       rac1                     STABLE
+               ONLINE  ONLINE       rac2                     STABLE
+--------------------------------------------------------------------------------
+Cluster Resources
+--------------------------------------------------------------------------------
+ora.ASMNET1LSNR_ASM.lsnr(ora.asmgroup)
+      1        ONLINE  ONLINE       rac1                     STABLE
+      2        ONLINE  ONLINE       rac2                     STABLE
+      3        OFFLINE OFFLINE                               STABLE
+ora.CRS.dg(ora.asmgroup)
+      1        ONLINE  ONLINE       rac1                     STABLE
+      2        ONLINE  ONLINE       rac2                     STABLE
+      3        OFFLINE OFFLINE                               STABLE
+ora.LISTENER_SCAN1.lsnr
+      1        ONLINE  ONLINE       rac2                     STABLE
+ora.LISTENER_SCAN2.lsnr
+      1        ONLINE  ONLINE       rac1                     STABLE
+ora.LISTENER_SCAN3.lsnr
+      1        ONLINE  ONLINE       rac1                     STABLE
+ora.asm(ora.asmgroup)
+      1        ONLINE  ONLINE       rac1                     Started,STABLE
+      2        ONLINE  ONLINE       rac2                     Started,STABLE
+      3        OFFLINE OFFLINE                               STABLE
+ora.asmnet1.asmnetwork(ora.asmgroup)
+      1        ONLINE  ONLINE       rac1                     STABLE
+      2        ONLINE  ONLINE       rac2                     STABLE
+      3        OFFLINE OFFLINE                               STABLE
+ora.cvu
+      1        ONLINE  ONLINE       rac1                     STABLE
+ora.qosmserver
+      1        ONLINE  ONLINE       rac1                     STABLE
+ora.rac1.vip
+      1        ONLINE  ONLINE       rac1                     STABLE
+ora.rac2.vip
+      1        ONLINE  ONLINE       rac2                     STABLE
+ora.scan1.vip
+      1        ONLINE  ONLINE       rac2                     STABLE
+ora.scan2.vip
+      1        ONLINE  ONLINE       rac1                     STABLE
+ora.scan3.vip
+      1        ONLINE  ONLINE       rac1                     STABLE
+--------------------------------------------------------------------------------
+
+```
+
+#### `crsctl stat res -t` 실행 자체가 실패할 때
+
+<aside>
+
+[root@rac1 ~]#  crsctl stat res -t
+CRS-4535: Cannot communicate with Cluster Ready Services
+CRS-4000: Command Status failed, or completed with errors.
+
+</aside>
+
+![image.png](ASM%20%EB%94%94%EC%8A%A4%ED%81%AC%20%EA%B7%B8%EB%A3%B9%20%EC%83%9D%EC%84%B1/image.png)
+
+#### 우선 확인 항목(순서)
+
+1. 클러스터 상태 확인(`crsctl check crs`)
+
+```sql
+crsctl check crs
+```
+
+![image.png](ASM%20%EB%94%94%EC%8A%A4%ED%81%AC%20%EA%B7%B8%EB%A3%B9%20%EC%83%9D%EC%84%B1/image%201.png)
+
+1. ASM 디스크 라벨 목록 확인(양쪽 노드, root)
+    - `CRS1/2/3`, `DATA`, `FRA` 등이 보여야 한다.
+
+```sql
+oracleasm listdisks
+```
+
+![image.png](ASM%20%EB%94%94%EC%8A%A4%ED%81%AC%20%EA%B7%B8%EB%A3%B9%20%EC%83%9D%EC%84%B1/image%202.png)
+
+1. 실제 디바이스 경로/권한 확인
+
+```sql
+ls -l /dev/oracleasm/disks/
+```
+
+![image.png](ASM%20%EB%94%94%EC%8A%A4%ED%81%AC%20%EA%B7%B8%EB%A3%B9%20%EC%83%9D%EC%84%B1/image%203.png)
+
+1. 점검 결과가 정상이면 클러스터 기동
+    - `rac1`에서 수행 후, 필요 시 `rac2`에서도 동일하게 수행한다.
+
+```sql
+crsctl start cluster
+```
+
+<aside>
+
+`crsctl start cluster`는 CRS 데몬이 이미 떠 있고 클러스터 리소스만 시작할 때 사용한다. 
+만약 CRS 자체가 비정상이면 이 명령은 동작하지 않으므로, 바로 아래의 `crsctl stop crs -f` → `crsctl start crs`로 진행한다.
+
+</aside>
+
+#### 만약 클러스터를 기동 시, 아래 이미지와 같은 에러가 나온다면 
+**CRS가 부분적으로만 실행 중인 것이다.**
+
+**다음을 순서대로 확인한다.**
+
+![image.png](ASM%20%EB%94%94%EC%8A%A4%ED%81%AC%20%EA%B7%B8%EB%A3%B9%20%EC%83%9D%EC%84%B1/image%204.png)
+
+**1. CRS 전체 중지 후 재시작 (rac1,2 모두 동일하게 수행)**
+
+```sql
+[root@rac1 ~]# crsctl stop crs -f
+[root@rac1 ~]# crsctl start crs
+```
+
+**2. 재시작 후 상태 확인**
+
+→ 아직 서비스가 올라오는 중일 수 있기 때문에 1~2분 기다린 후 확인
+
+```sql
+crsctl check crs
+```
+
+![**이렇게 나오면 성공!**](ASM%20%EB%94%94%EC%8A%A4%ED%81%AC%20%EA%B7%B8%EB%A3%B9%20%EC%83%9D%EC%84%B1/image%205.png)
+
+**이렇게 나오면 성공!**
+
+**3. 만약 여전히 안 되면 로그 확인**
+
+```sql
+# 현재 노드명에 맞춰 경로 사용
+	tail -100 /u01/app/grid/19c/log/호스트명(rac1)/crsd/crsd.log
+```
+
+<aside>
+
+**왜 CRS가 부분적으로만 실행되는지 ?**
+
+VM을 종료했다가 다시 켤 때 CRS 서비스가 정상적인 순서로 올라오지 못하는 것이 이유이다.
+
+특히 VirtualBox 환경에서는 다음과 같은 원인이 흔한데
+
+1. VM 부팅 시 네트워크 인터페이스가 CRS보다 늦게 활성화됨
+2. 공유 디스크(ASM)가 CRS 시작 시점에 아직 인식되지 않음
+3. 두 노드가 동시에 부팅되지 않아 노드 간 통신 타이밍이 맞지 않음
+</aside>
+
+---
+
+### 2. ASMCA로 디스크 그룹 생성(DATA/FRA)
+
+<aside>
+
+오라클 유저로 `asmca`를 실행해 ASM Configuration Assistant에서 디스크 그룹을 생성한다.
+
+</aside>
+
+```bash
+[oracle@rac1 ~]$ asmca
+```
+
+> **참고**: 서버 부팅 직후에는 CRS가 모두 올라오기까지 보통 1~3분이 걸리며, 환경에 따라 더 오래 걸릴 수도 있다. crsctl check crs 명령으로 모든 항목이 online이 된 후 asmca를 실행한다.
+> 
+
+![image.png](ASM%20%EB%94%94%EC%8A%A4%ED%81%AC%20%EA%B7%B8%EB%A3%B9%20%EC%83%9D%EC%84%B1/image%206.png)
+
+#### `DATA` 디스크 그룹 추가
+
+![image.png](ASM%20%EB%94%94%EC%8A%A4%ED%81%AC%20%EA%B7%B8%EB%A3%B9%20%EC%83%9D%EC%84%B1/image%207.png)
+
+![image.png](ASM%20%EB%94%94%EC%8A%A4%ED%81%AC%20%EA%B7%B8%EB%A3%B9%20%EC%83%9D%EC%84%B1/image%208.png)
+
+디스크 그룹 이름을 DATA로 설정하고, 중복성 없음 체크한다.
+
+아래에서 DATA 디스크의 경로를 체크하고 확인을 누른다.
+
+#### `FRA` 디스크 그룹 추가(동일 방식)
+
+![image.png](ASM%20%EB%94%94%EC%8A%A4%ED%81%AC%20%EA%B7%B8%EB%A3%B9%20%EC%83%9D%EC%84%B1/image%209.png)
+
+#### 생성 완료 확인(ASMCA 화면)
+
+![image.png](ASM%20%EB%94%94%EC%8A%A4%ED%81%AC%20%EA%B7%B8%EB%A3%B9%20%EC%83%9D%EC%84%B1/image%2010.png)
+
+![image.png](ASM%20%EB%94%94%EC%8A%A4%ED%81%AC%20%EA%B7%B8%EB%A3%B9%20%EC%83%9D%EC%84%B1/image%2011.png)
+
+- `+ASM` 인스턴스 화면에서 ASM 관련 정보를 확인할 수 있다.
+- 확인이 끝나면 **종료(Exit)** 를 누른다.
+
+---
+
+### 3. 결과 확인
+
+```sql
+[oracle@rac1 ~]$ crsctl stat res -t
+```
+
+![image.png](ASM%20%EB%94%94%EC%8A%A4%ED%81%AC%20%EA%B7%B8%EB%A3%B9%20%EC%83%9D%EC%84%B1/image%2012.png)
+
+- `DATA`, `FRA` 디스크 그룹이 생성되었는지 `crsctl stat res -t`로 확인한다.
