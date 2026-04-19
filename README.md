@@ -1,4 +1,4 @@
-markdown# Oracle 19c RAC Installation Guide
+# Oracle 19c RAC Installation Guide
 
 Oracle 19c RAC(Real Application Clusters) 환경 구축 가이드입니다. 
 
